@@ -36,6 +36,7 @@ Given the user's input (free text + structured fields), analyze their needs and 
 4. **relaxed_constraints**: If fewer than 3 cars match strictly, relax the lowest-priority constraint. List what was relaxed (e.g., "fuel_type: you asked for diesel, showing petrol options too").
 5. **Contradictions**: If the user wants something contradictory (e.g., "7-seater SUV under 8L"), flag it in assumptions and recommend the closest realistic options.
 6. Every claim about a car MUST reference a specific spec value from the catalog.
+7. **excluded_popular**: Pick 1-2 popular cars from the catalog that are well-known in the user's budget range but were NOT recommended. Explain why each was excluded based on the user's specific needs. Use specific spec values. Example: "Creta has only 3/5 NCAP safety rating — doesn't match your priority for safety." Only exclude cars that a buyer might reasonably expect to see.
 
 ## BUDGET MAPPING:
 - "under-5L" means below ₹5,00,000
@@ -66,18 +67,28 @@ Given the user's input (free text + structured fields), analyze their needs and 
       "match_strength": "strong"
     }
   ],
-  "relaxed_constraints": []
+  "relaxed_constraints": [],
+  "excluded_popular": [
+    {
+      "car_id": 20,
+      "reason": "specific reason why this popular car was excluded based on user needs"
+    }
+  ]
 }`;
 }
 
 export async function getRecommendations(
   input: UserInput
 ): Promise<AdvisorResponse> {
+  const contextPart = input.previousContext
+    ? `\n\nPREVIOUS CONVERSATION CONTEXT (user is refining their search):\n${input.previousContext}\n\nThe user's new message below is a follow-up. Keep the original preferences but apply the refinement.`
+    : "";
+
   const userMessage = `
 User's free-text description: "${input.freeText}"
 Selected budget range: ${input.budget}
 Family size: ${input.familySize}
-Primary use: ${input.primaryUse}
+Primary use: ${input.primaryUse}${contextPart}
   `.trim();
 
   let responseText = "";

@@ -32,6 +32,12 @@ export interface UserInput {
   budget: string;
   familySize: string;
   primaryUse: string;
+  previousContext?: string;
+}
+
+export interface ExcludedCar {
+  car_id: number;
+  reason: string;
 }
 
 export interface ExtractedPreferences {
@@ -58,4 +64,5 @@ export interface AdvisorResponse {
   assumptions: { label: string; value: string }[];
   recommendations: CarRecommendation[];
   relaxed_constraints?: string[];
+  excluded_popular?: ExcludedCar[];
 }

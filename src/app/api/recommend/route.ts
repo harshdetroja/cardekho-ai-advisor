@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRecommendations } from "@/lib/gemini";
-import { getCarsByIds } from "@/lib/cars";
+import { getCarsByIds, getCarById } from "@/lib/cars";
 import { UserInput } from "@/types/car";
 
 export async function POST(req: NextRequest) {
@@ -30,10 +30,15 @@ export async function POST(req: NextRequest) {
       .map((rec) => {
         const car = cars.find((c) => c.id === rec.car_id);
         if (!car) return null;
-        return {
-          ...rec,
-          car,
-        };
+        return { ...rec, car };
+      })
+      .filter(Boolean);
+
+    const enrichedExcluded = (aiResponse.excluded_popular || [])
+      .map((exc) => {
+        const car = getCarById(exc.car_id);
+        if (!car) return null;
+        return { ...exc, car };
       })
       .filter(Boolean);
 
@@ -42,6 +47,7 @@ export async function POST(req: NextRequest) {
       assumptions: aiResponse.assumptions,
       recommendations: enrichedRecommendations,
       relaxed_constraints: aiResponse.relaxed_constraints || [],
+      excluded_popular: enrichedExcluded,
     });
   } catch (error) {
     console.error("Recommendation error:", error);

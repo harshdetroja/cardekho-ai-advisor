@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Car, CarRecommendation } from "@/types/car";
+import { Car, CarRecommendation, ExcludedCar } from "@/types/car";
 
 function formatPrice(price: number): string {
   if (price >= 10000000) {
@@ -14,14 +14,46 @@ interface EnrichedRecommendation extends CarRecommendation {
   car: Car;
 }
 
+interface EnrichedExcluded extends ExcludedCar {
+  car: Car;
+}
+
 interface ApiResponse {
   is_car_query: boolean;
   redirect_message?: string;
   assumptions?: { label: string; value: string }[];
   recommendations?: EnrichedRecommendation[];
   relaxed_constraints?: string[];
+  excluded_popular?: EnrichedExcluded[];
   error?: string;
 }
+
+const EXAMPLE_PROMPTS = [
+  {
+    text: "Safe family SUV under 15 lakh with good mileage",
+    budget: "10-15L",
+    familySize: "3-4",
+    use: "mixed",
+  },
+  {
+    text: "Best first car for a college graduate, low maintenance",
+    budget: "5-10L",
+    familySize: "1-2",
+    use: "city",
+  },
+  {
+    text: "7-seater for weekend highway trips with parents and kids",
+    budget: "15-25L",
+    familySize: "5-7",
+    use: "highway",
+  },
+  {
+    text: "Electric car for daily Bangalore commute, no range anxiety",
+    budget: "15-25L",
+    familySize: "1-2",
+    use: "city",
+  },
+];
 
 const BUDGET_OPTIONS = [
   { label: "Under ₹5 Lakh", value: "under-5L" },
@@ -288,6 +320,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [compareIds, setCompareIds] = useState<Set<number>>(new Set());
   const [refineText, setRefineText] = useState("");
+  const [previousContext, setPreviousContext] = useState("");
 
   const handleSubmit = async () => {
     if (!budget || !familySize || !primaryUse) {
@@ -303,7 +336,7 @@ export default function Home() {
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ freeText, budget, familySize, primaryUse }),
+        body: JSON.stringify({ freeText, budget, familySize, primaryUse, previousContext }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -311,6 +344,12 @@ export default function Home() {
         return;
       }
       setResult(data);
+      const recNames = data.recommendations
+        ?.map((r: EnrichedRecommendation) => `${r.car.brand} ${r.car.name}`)
+        .join(", ");
+      setPreviousContext(
+        `User asked: "${freeText}" | Budget: ${budget} | Family: ${familySize} | Use: ${primaryUse} | Recommended: ${recNames}`
+      );
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {
@@ -332,7 +371,8 @@ export default function Home() {
 
   const handleRefine = () => {
     if (refineText.trim()) {
-      setFreeText(refineText.trim());
+      const refinement = refineText.trim();
+      setFreeText(refinement);
       setRefineText("");
       setResult(null);
       setCompareIds(new Set());
@@ -343,10 +383,11 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          freeText: refineText.trim(),
+          freeText: refinement,
           budget,
           familySize,
           primaryUse,
+          previousContext,
         }),
       })
         .then((res) => res.json())
@@ -355,6 +396,12 @@ export default function Home() {
             setError(data.error);
           } else {
             setResult(data);
+            const recNames = data.recommendations
+              ?.map((r: EnrichedRecommendation) => `${r.car.brand} ${r.car.name}`)
+              .join(", ");
+            setPreviousContext(
+              `${previousContext} | Refinement: "${refinement}" | New recommendations: ${recNames}`
+            );
           }
         })
         .catch(() => {
@@ -364,6 +411,13 @@ export default function Home() {
           setLoading(false);
         });
     }
+  };
+
+  const applyExample = (example: (typeof EXAMPLE_PROMPTS)[0]) => {
+    setFreeText(example.text);
+    setBudget(example.budget);
+    setFamilySize(example.familySize);
+    setPrimaryUse(example.use);
   };
 
   const comparedCars =
@@ -411,6 +465,17 @@ export default function Home() {
               Tell us what you need in your own words. We&apos;ll find the
               perfect match from 35+ popular cars.
             </p>
+            <div className="flex flex-wrap justify-center gap-2 pt-3">
+              {EXAMPLE_PROMPTS.map((ex, i) => (
+                <button
+                  key={i}
+                  onClick={() => applyExample(ex)}
+                  className="text-xs bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-lg hover:border-indigo-300 hover:text-indigo-600 transition-colors cursor-pointer text-left"
+                >
+                  &ldquo;{ex.text}&rdquo;
+                </button>
+              ))}
+            </div>
           </section>
         )}
 
@@ -421,6 +486,7 @@ export default function Home() {
               onClick={() => {
                 setResult(null);
                 setCompareIds(new Set());
+                setPreviousContext("");
               }}
               className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1 cursor-pointer"
             >
@@ -613,6 +679,50 @@ export default function Home() {
                 />
               ))}
             </div>
+
+            {/* Excluded Popular Cars */}
+            {result.excluded_popular && result.excluded_popular.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">
+                  Why we didn&apos;t recommend these popular cars
+                </h3>
+                <div className="space-y-3">
+                  {result.excluded_popular.map((exc) => (
+                    <div
+                      key={exc.car_id}
+                      className="flex items-start gap-3 bg-slate-50 rounded-xl p-3"
+                    >
+                      <div className="w-8 h-8 bg-slate-200 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg
+                          className="w-4 h-4 text-slate-500"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M6 18 18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">
+                          {exc.car.brand} {exc.car.name}{" "}
+                          <span className="font-normal text-slate-500">
+                            ({formatPrice(exc.car.price_ex_showroom_inr)})
+                          </span>
+                        </p>
+                        <p className="text-sm text-slate-600 mt-0.5">
+                          {exc.reason}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Comparison Table */}
             {comparedCars.length >= 2 && (
