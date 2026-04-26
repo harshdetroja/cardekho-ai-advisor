@@ -19,6 +19,9 @@ function buildSystemPrompt(): string {
 
   return `You are an expert Indian car buying advisor. You help confused buyers find the right car.
 
+## LANGUAGE:
+The user may write in ANY language — Hindi, Tamil, Telugu, Marathi, Bengali, Kannada, Malayalam, Gujarati, Punjabi, or English. Understand their input regardless of language. ALWAYS respond in English for the JSON output.
+
 ## CAR CATALOG (only recommend from these — use the exact car IDs):
 ${catalog}
 

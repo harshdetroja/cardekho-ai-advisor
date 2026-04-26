@@ -321,6 +321,8 @@ export default function Home() {
   const [compareIds, setCompareIds] = useState<Set<number>>(new Set());
   const [refineText, setRefineText] = useState("");
   const [previousContext, setPreviousContext] = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleSubmit = async () => {
     if (!budget || !familySize || !primaryUse) {
@@ -420,6 +422,49 @@ export default function Home() {
     setPrimaryUse(example.use);
   };
 
+  const toggleVoiceInput = () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const win = window as any;
+    const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition;
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    if (!SpeechRecognition) {
+      setError("Voice input is not supported in your browser. Try Chrome.");
+      return;
+    }
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "hi-IN";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    setIsListening(true);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript as string;
+      setFreeText((prev: string) => (prev ? prev + " " + transcript : transcript));
+      setIsListening(false);
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    recognition.start();
+  };
+
+  const shareShortlist = () => {
+    if (!result?.recommendations) return;
+    const lines = result.recommendations.map(
+      (rec, i) =>
+        `${i + 1}. ${rec.car.brand} ${rec.car.name} ${rec.car.variant} — ${formatPrice(rec.car.price_ex_showroom_inr)}\n   ✅ ${rec.why_for_you}\n   ⚠️ ${rec.tradeoffs}`
+    );
+    const text = `🚗 My CarDekho AI Shortlist:\n\n${lines.join("\n\n")}`;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   const comparedCars =
     result?.recommendations?.filter((r) => compareIds.has(r.car_id)) || [];
 
@@ -511,12 +556,33 @@ export default function Home() {
             <label className="block text-sm font-medium text-slate-700 mb-2">
               Describe what you&apos;re looking for
             </label>
-            <textarea
-              value={freeText}
-              onChange={(e) => setFreeText(e.target.value)}
-              placeholder="e.g., I live in Bangalore with a family of 4. Need something safe and fuel-efficient for daily city driving. Occasionally drive to Mysore on weekends..."
-              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none h-24"
-            />
+            <div className="relative">
+              <textarea
+                value={freeText}
+                onChange={(e) => setFreeText(e.target.value)}
+                placeholder="e.g., I live in Bangalore with a family of 4. Need something safe and fuel-efficient for daily city driving. &#10;&#10;You can type in Hindi, Tamil, Telugu, or any language you're comfortable with!"
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-14 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none h-24"
+              />
+              <button
+                type="button"
+                onClick={toggleVoiceInput}
+                className={`absolute right-3 top-3 p-2 rounded-lg transition-colors cursor-pointer ${
+                  isListening
+                    ? "bg-red-100 text-red-600 animate-pulse"
+                    : "bg-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600"
+                }`}
+                title={isListening ? "Listening... click to stop" : "Speak your requirements"}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                </svg>
+              </button>
+            </div>
+            {isListening && (
+              <p className="text-xs text-red-500 mt-1 animate-pulse">
+                Listening... speak now (works in Hindi, English, and more)
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -652,6 +718,21 @@ export default function Home() {
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Share Shortlist */}
+            {result.recommendations && result.recommendations.length > 0 && (
+              <div className="flex justify-end">
+                <button
+                  onClick={shareShortlist}
+                  className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 bg-white transition-colors cursor-pointer"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
+                  </svg>
+                  {copied ? "Copied to clipboard!" : "Share shortlist"}
+                </button>
               </div>
             )}
 
