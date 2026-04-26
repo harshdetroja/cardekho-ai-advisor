@@ -436,7 +436,7 @@ export default function Home() {
       return;
     }
     const recognition = new SpeechRecognition();
-    recognition.lang = "hi-IN";
+    recognition.lang = "en-IN";
     recognition.interimResults = false;
     recognition.continuous = false;
     setIsListening(true);
@@ -744,7 +744,9 @@ export default function Home() {
                     <span className="font-semibold">
                       Showing closest matches:
                     </span>{" "}
-                    {result.relaxed_constraints.join(". ")}
+                    {result.relaxed_constraints
+                      .map((c) => (typeof c === "string" ? c : JSON.stringify(c)))
+                      .join(". ")}
                   </p>
                 </div>
               )}

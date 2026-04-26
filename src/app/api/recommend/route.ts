@@ -46,7 +46,9 @@ export async function POST(req: NextRequest) {
       is_car_query: true,
       assumptions: aiResponse.assumptions,
       recommendations: enrichedRecommendations,
-      relaxed_constraints: aiResponse.relaxed_constraints || [],
+      relaxed_constraints: (aiResponse.relaxed_constraints || []).map((c) =>
+        typeof c === "string" ? c : (c as { constraint?: string; message?: string }).message || (c as { constraint?: string; message?: string }).constraint || JSON.stringify(c)
+      ),
       excluded_popular: enrichedExcluded,
     });
   } catch (error) {
